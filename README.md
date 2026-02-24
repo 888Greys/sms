@@ -1,28 +1,38 @@
-# Telegram Manual SMS Helper (Netlify + Upstash)
+# Telegram Manual SMS Helper (Server + Upstash Redis)
 
-This bot serves one number at a time from your existing `sms_batches/*.txt` files and tracks actions (`Sent`, `Skip`, `Undo`) in Redis.
+This bot runs as a long-lived server process and uses Telegram long polling (`getUpdates`), with all state stored in Upstash Redis.
 
-## What it does
+## Multi-Agent Behavior
 
-- `/start`: choose a batch.
-- `/batch` or `/batch <n>`: pick/change batch.
-- `/next`: show current or next number.
-- `/progress`: show totals.
-- `/undo`: revert last `Sent` or `Skip`.
+- One agent can own only one batch at a time.
+- One batch can be owned by only one agent at a time.
+- Agents cannot pull numbers from batches they do not own.
+- `/release` requeues current assigned number and unlocks the batch.
+- Admins can unlock stuck ownership with `/force_release <batch>`.
 
-Inline buttons are attached to each number:
+## Agent Commands
 
-- `Sent ✅`
-- `Skip ⏭`
-- `Undo ↩`
-- `Next ▶`
+- `/start`
+- `/help`
+- `/claim`
+- `/claim <batch>`
+- `/mybatch`
+- `/next`
+- `/progress`
+- `/undo`
+- `/release`
+- `/status`
+
+Admin-only:
+
+- `/force_release <batch>`
 
 ## Prerequisites
 
-- Node.js 20+ (recommended)
+- Node.js 20+
 - Telegram bot token from `@BotFather`
 - Upstash Redis database
-- Netlify site
+- Server/VM where process can run continuously
 
 ## Setup
 
@@ -32,48 +42,49 @@ Inline buttons are attached to each number:
 npm install
 ```
 
-2. Create `.env` from `.env.example` and fill values:
+2. Create `.env` and fill required values:
 
 ```bash
 cp .env.example .env
 ```
 
-3. Import your current batch files into Redis:
+3. Import local `sms_batches/*.txt` into Redis:
 
 ```bash
 npm run import:batches
 ```
 
-4. Deploy to Netlify.
-
-5. Set Netlify environment variables:
-
-- `BOT_TOKEN`
-- `TELEGRAM_WEBHOOK_SECRET`
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
-- `REDIS_PREFIX` (optional)
-
-6. Set webhook (can be from local machine after deploy):
+4. Build and start:
 
 ```bash
-npm run set:webhook
+npm run build
+npm start
 ```
 
-`WEBHOOK_BASE_URL` must be your production site URL (for example `https://your-site.netlify.app`).
+On startup, the bot calls `deleteWebhook` and then starts polling.
 
-## Netlify endpoint
+## Environment Variables
 
-Webhook path:
+Required:
 
-`/.netlify/functions/telegram-webhook`
+- `BOT_TOKEN`
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
 
-Health check:
+Optional:
 
-`GET /.netlify/functions/telegram-webhook`
+- `REDIS_PREFIX` (default `smsbot`)
+- `MIN_BATCH` (default `1`)
+- `MAX_BATCH` (default `10`)
+- `POLL_TIMEOUT_SECONDS` (default `50`)
+- `POLL_RETRY_DELAY_MS` (default `2000`)
+- `ADMIN_USER_IDS` (comma-separated Telegram user IDs)
 
-## Notes
+## CI/Test
 
-- This is webhook-based (recommended for Netlify), not long polling.
-- Number state is persistent in Redis; Netlify function filesystem is not used for progress.
-- `Undo` restores the last action and places the number back at the front of that batch queue.
+```bash
+npm run check
+npm test
+```
+
+`npm test` compiles TypeScript and runs Node's built-in test runner from `tests/`.

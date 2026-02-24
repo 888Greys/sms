@@ -1,5 +1,9 @@
 export interface TelegramUser {
   id: number;
+  is_bot?: boolean;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
 }
 
 export interface TelegramChat {
@@ -36,12 +40,19 @@ export interface InlineKeyboardMarkup {
   inline_keyboard: InlineKeyboardButton[][];
 }
 
-const callTelegram = async (
+interface TelegramResponse<T> {
+  ok: boolean;
+  result: T;
+}
+
+const telegramApi = (token: string): string => `https://api.telegram.org/bot${token}`;
+
+const callTelegram = async <T>(
   token: string,
   method: string,
   payload: Record<string, unknown>
-): Promise<void> => {
-  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+): Promise<T> => {
+  const response = await fetch(`${telegramApi(token)}/${method}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -49,10 +60,16 @@ const callTelegram = async (
     body: JSON.stringify(payload)
   });
 
+  const body = await response.text();
   if (!response.ok) {
-    const body = await response.text();
     throw new Error(`Telegram API ${method} failed: ${response.status} ${body}`);
   }
+
+  const parsed = JSON.parse(body) as TelegramResponse<T>;
+  if (!parsed.ok) {
+    throw new Error(`Telegram API ${method} returned ok=false`);
+  }
+  return parsed.result;
 };
 
 export const sendMessage = async (
@@ -77,5 +94,26 @@ export const answerCallbackQuery = async (
   await callTelegram(token, "answerCallbackQuery", {
     callback_query_id: callbackQueryId,
     ...(text ? { text } : {})
+  });
+};
+
+export const getUpdates = async (
+  token: string,
+  offset: number | undefined,
+  timeoutSeconds: number
+): Promise<TelegramUpdate[]> => {
+  return callTelegram<TelegramUpdate[]>(token, "getUpdates", {
+    ...(typeof offset === "number" ? { offset } : {}),
+    timeout: timeoutSeconds,
+    allowed_updates: ["message", "callback_query"]
+  });
+};
+
+export const deleteWebhook = async (
+  token: string,
+  dropPendingUpdates: boolean
+): Promise<void> => {
+  await callTelegram(token, "deleteWebhook", {
+    drop_pending_updates: dropPendingUpdates
   });
 };

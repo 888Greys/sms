@@ -1,18 +1,17 @@
 import { Redis } from "@upstash/redis";
 import { getConfig } from "./config.js";
 
-let client: Redis | null = null;
+let cachedClient: Redis | null = null;
 
 export const getRedis = (): Redis => {
-  if (client) {
-    return client;
+  if (cachedClient) {
+    return cachedClient;
   }
 
   const config = getConfig();
-  client = new Redis({
+  cachedClient = new Redis({
     url: config.redisUrl,
     token: config.redisToken
   });
-
-  return client;
+  return cachedClient;
 };

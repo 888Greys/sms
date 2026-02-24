@@ -28,7 +28,13 @@ const key = {
   batchSent: (batch) => `${root}:batch:${batch}:sent`,
   batchSkipped: (batch) => `${root}:batch:${batch}:skipped`,
   batchTotal: (batch) => `${root}:batch:${batch}:total`,
-  number: (numberId) => `${root}:number:${numberId}`
+  batchOwner: (batch) => `${root}:batch:${batch}:owner`,
+  number: (numberId) => `${root}:number:${numberId}`,
+  agentBatch: (agentId) => `${root}:agent:${agentId}:batch`,
+  agentCurrent: (agentId) => `${root}:agent:${agentId}:current`,
+  agentHistory: (agentId) => `${root}:agent:${agentId}:history`,
+  agentsAll: () => `${root}:agents:all`,
+  runtimeOffset: () => `${root}:runtime:offset`
 };
 
 const thisFile = fileURLToPath(import.meta.url);
@@ -109,6 +115,7 @@ for (const filename of batchFiles) {
     key.batchSent(batch),
     key.batchSkipped(batch),
     key.batchTotal(batch),
+    key.batchOwner(batch),
     ...existingIds.map((id) => key.number(id))
   ];
   await deleteMany(staleKeys);
@@ -133,5 +140,20 @@ for (const filename of batchFiles) {
   totalImported += ids.length;
   console.log(`Imported batch ${batch}: ${ids.length} numbers`);
 }
+
+const allAgentsRaw = await redis.smembers(key.agentsAll());
+const allAgents = Array.isArray(allAgentsRaw)
+  ? allAgentsRaw.filter((value) => typeof value === "string")
+  : [];
+
+for (const agentId of allAgents) {
+  await deleteMany([
+    key.agentBatch(agentId),
+    key.agentCurrent(agentId),
+    key.agentHistory(agentId)
+  ]);
+}
+
+await redis.del(key.runtimeOffset());
 
 console.log(`Done. Total imported: ${totalImported}`);

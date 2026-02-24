@@ -4,10 +4,14 @@ export interface KeyFactory {
   batchSent(batch: number): string;
   batchSkipped(batch: number): string;
   batchTotal(batch: number): string;
+  batchOwner(batch: number): string;
   number(id: string): string;
   agentBatch(userId: number): string;
   agentCurrent(userId: number): string;
   agentHistory(userId: number): string;
+  agentProfile(userId: number): string;
+  agentsAll(): string;
+  runtimeOffset(): string;
 }
 
 export const createKeys = (prefix: string): KeyFactory => {
@@ -18,10 +22,14 @@ export const createKeys = (prefix: string): KeyFactory => {
     batchSent: (batch) => `${root}:batch:${batch}:sent`,
     batchSkipped: (batch) => `${root}:batch:${batch}:skipped`,
     batchTotal: (batch) => `${root}:batch:${batch}:total`,
+    batchOwner: (batch) => `${root}:batch:${batch}:owner`,
     number: (id) => `${root}:number:${id}`,
     agentBatch: (userId) => `${root}:agent:${userId}:batch`,
     agentCurrent: (userId) => `${root}:agent:${userId}:current`,
-    agentHistory: (userId) => `${root}:agent:${userId}:history`
+    agentHistory: (userId) => `${root}:agent:${userId}:history`,
+    agentProfile: (userId) => `${root}:agent:${userId}:profile`,
+    agentsAll: () => `${root}:agents:all`,
+    runtimeOffset: () => `${root}:runtime:offset`
   };
 };
 
@@ -30,5 +38,9 @@ export const parseBatchFromNumberId = (numberId: string): number | null => {
   if (!match) {
     return null;
   }
-  return Number.parseInt(match[1], 10);
+  const batchGroup = match.at(1);
+  if (!batchGroup) {
+    return null;
+  }
+  return Number.parseInt(batchGroup, 10);
 };
