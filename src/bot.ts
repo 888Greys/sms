@@ -86,11 +86,11 @@ const getCurrentNumberId = async (userId: number): Promise<string | null> => {
 };
 
 const getPhoneForNumberId = async (numberId: string): Promise<string | null> => {
-  const record = await redis.hgetall<Record<string, string> | null>(keys.number(numberId));
-  if (!record) {
+  const record = await redis.hgetall<Record<string, string>>(keys.number(numberId));
+  if (!record || typeof record.phone !== "string" || record.phone.length === 0) {
     return null;
   }
-  return record.phone ?? null;
+  return record.phone;
 };
 
 const getBatchOwnerId = async (batch: number): Promise<number | null> => {
