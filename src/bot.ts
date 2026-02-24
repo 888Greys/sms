@@ -553,7 +553,7 @@ const handleForceRelease = async (
 
   const batch = parseForceReleaseArg(text, config.minBatch, config.maxBatch);
   if (!batch) {
-    await sendMessage(config.botToken, chatId, "Usage: /force_release <batch>");
+    await sendMessage(config.botToken, chatId, "Usage: /force_release &lt;batch&gt;");
     return;
   }
 
@@ -588,7 +588,7 @@ const handleTextMessage = async (message: TelegramMessage): Promise<void> => {
       "<b>Manual SMS helper bot</b>\n" +
         "Commands:\n" +
         "/claim - choose a free batch\n" +
-        "/claim <n> - claim batch n\n" +
+        "/claim &lt;n&gt; - claim batch n\n" +
         "/mybatch - show your assigned batch\n" +
         "/next - get current or next number\n" +
         "/progress - show your batch progress\n" +
@@ -606,14 +606,14 @@ const handleTextMessage = async (message: TelegramMessage): Promise<void> => {
       chatId,
       "Commands:\n" +
         "/claim\n" +
-        "/claim <n>\n" +
+        "/claim &lt;n&gt;\n" +
         "/mybatch\n" +
         "/next\n" +
         "/progress\n" +
         "/release\n" +
         "/undo\n" +
         "/status\n" +
-        "/force_release <n> (admin only)"
+        "/force_release &lt;n&gt; (admin only)"
     );
     return;
   }
