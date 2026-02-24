@@ -63,6 +63,24 @@ npm start
 
 On startup, the bot calls `deleteWebhook` and then starts polling.
 
+## Run With PM2
+
+```bash
+npm run build
+npx pm2 start ecosystem.config.cjs --only sms-bot --env production
+npx pm2 save
+npx pm2 startup
+```
+
+For updates:
+
+```bash
+git pull
+npm install
+npm run build
+npx pm2 restart sms-bot
+```
+
 ## Environment Variables
 
 Required:

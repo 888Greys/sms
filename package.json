@@ -7,6 +7,11 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit",
     "start": "node dist/src/bot.js",
+    "pm2:start": "pm2 start ecosystem.config.cjs --only sms-bot --env production",
+    "pm2:restart": "pm2 restart sms-bot",
+    "pm2:logs": "pm2 logs sms-bot",
+    "pm2:stop": "pm2 stop sms-bot",
+    "pm2:delete": "pm2 delete sms-bot",
     "test": "npm run build && node --test dist/tests",
     "import:batches": "node scripts/import-batches.mjs"
   },
