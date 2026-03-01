@@ -70,6 +70,7 @@ const asInt = (value: unknown): number => {
 };
 
 const isAdmin = (userId: number): boolean => config.adminUserIds.has(userId);
+const isAllowed = (userId: number): boolean => config.allowedUserIds.has(userId);
 
 const getSelectedBatch = async (userId: number): Promise<number | null> => {
   const raw = await redis.get<string | number | null>(keys.agentBatch(userId));
@@ -339,11 +340,11 @@ const sendProgressForBatch = async (chatId: number, batch: number): Promise<void
     config.botToken,
     chatId,
     `<b>Batch ${batch} Progress</b>\n` +
-      `Total: <b>${progress.total}</b>\n` +
-      `Sent: <b>${progress.sent}</b>\n` +
-      `Skipped: <b>${progress.skipped}</b>\n` +
-      `Pending queue: <b>${progress.pendingQueue}</b>\n` +
-      `Remaining overall: <b>${progress.remaining}</b>`
+    `Total: <b>${progress.total}</b>\n` +
+    `Sent: <b>${progress.sent}</b>\n` +
+    `Skipped: <b>${progress.skipped}</b>\n` +
+    `Pending queue: <b>${progress.pendingQueue}</b>\n` +
+    `Remaining overall: <b>${progress.remaining}</b>`
   );
 };
 
@@ -447,8 +448,8 @@ const sendCurrentOrNext = async (chatId: number, userId: number): Promise<void> 
     config.botToken,
     chatId,
     `<b>Batch ${batch}</b>\n` +
-      `Copy number:\n<code>${escapeHtml(phone)}</code>\n\n` +
-      `Sent ${progress.sent} | Skipped ${progress.skipped} | Remaining ${progress.remaining}`,
+    `Copy number:\n<code>${escapeHtml(phone)}</code>\n\n` +
+    `Sent ${progress.sent} | Skipped ${progress.skipped} | Remaining ${progress.remaining}`,
     buildActionKeyboard(numberId)
   );
 };
@@ -581,20 +582,25 @@ const handleTextMessage = async (message: TelegramMessage): Promise<void> => {
 
   await registerAgent(message.from);
 
+  if (!isAllowed(userId)) {
+    await sendMessage(config.botToken, chatId, "⛔ You are not authorized to use this bot. Contact the admin to request access.");
+    return;
+  }
+
   if (text.startsWith("/start")) {
     await sendMessage(
       config.botToken,
       chatId,
       "<b>Manual SMS helper bot</b>\n" +
-        "Commands:\n" +
-        "/claim - choose a free batch\n" +
-        "/claim &lt;n&gt; - claim batch n\n" +
-        "/mybatch - show your assigned batch\n" +
-        "/next - get current or next number\n" +
-        "/progress - show your batch progress\n" +
-        "/release - release your current batch\n" +
-        "/undo - undo your last Sent/Skip\n" +
-        "/status - show all batch status"
+      "Commands:\n" +
+      "/claim - choose a free batch\n" +
+      "/claim &lt;n&gt; - claim batch n\n" +
+      "/mybatch - show your assigned batch\n" +
+      "/next - get current or next number\n" +
+      "/progress - show your batch progress\n" +
+      "/release - release your current batch\n" +
+      "/undo - undo your last Sent/Skip\n" +
+      "/status - show all batch status"
     );
     await sendClaimPicker(chatId, userId);
     return;
@@ -605,15 +611,15 @@ const handleTextMessage = async (message: TelegramMessage): Promise<void> => {
       config.botToken,
       chatId,
       "Commands:\n" +
-        "/claim\n" +
-        "/claim &lt;n&gt;\n" +
-        "/mybatch\n" +
-        "/next\n" +
-        "/progress\n" +
-        "/release\n" +
-        "/undo\n" +
-        "/status\n" +
-        "/force_release &lt;n&gt; (admin only)"
+      "/claim\n" +
+      "/claim &lt;n&gt;\n" +
+      "/mybatch\n" +
+      "/next\n" +
+      "/progress\n" +
+      "/release\n" +
+      "/undo\n" +
+      "/status\n" +
+      "/force_release &lt;n&gt; (admin only)"
     );
     return;
   }
@@ -676,6 +682,11 @@ const handleCallback = async (callback: TelegramCallbackQuery): Promise<void> =>
   }
 
   await registerAgent(callback.from);
+
+  if (!isAllowed(userId)) {
+    await answerCallbackQuery(config.botToken, callback.id, "Not authorized.");
+    return;
+  }
 
   if (data.startsWith("claim:")) {
     await answerCallbackQuery(config.botToken, callback.id);

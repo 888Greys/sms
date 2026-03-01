@@ -8,6 +8,7 @@ export interface AppConfig {
   pollTimeoutSeconds: number;
   pollRetryDelayMs: number;
   adminUserIds: Set<number>;
+  allowedUserIds: Set<number>;
 }
 
 const requiredEnv = (name: string): string => {
@@ -45,6 +46,24 @@ const parseAdminUserIds = (): Set<number> => {
   return new Set(ids);
 };
 
+const parseAllowedUserIds = (adminIds: Set<number>): Set<number> => {
+  const value = process.env.ALLOWED_USER_IDS;
+  if (!value || value.trim().length === 0) {
+    // If not set, only admins can access
+    return new Set(adminIds);
+  }
+  const parsed: number[] = value
+    .split(",")
+    .map((part: string) => part.trim())
+    .filter((part: string) => part.length > 0)
+    .map((part: string) => Number.parseInt(part, 10))
+    .filter((id: number) => Number.isFinite(id));
+  // Always include admins in the allowed set
+  const combined = new Set(parsed);
+  for (const id of adminIds) combined.add(id);
+  return combined;
+};
+
 let cached: AppConfig | null = null;
 
 export const getConfig = (): AppConfig => {
@@ -58,6 +77,7 @@ export const getConfig = (): AppConfig => {
     throw new Error("MIN_BATCH cannot be greater than MAX_BATCH.");
   }
 
+  const adminIds = parseAdminUserIds();
   cached = {
     botToken: requiredEnv("BOT_TOKEN"),
     redisUrl: requiredEnv("UPSTASH_REDIS_REST_URL"),
@@ -67,7 +87,8 @@ export const getConfig = (): AppConfig => {
     maxBatch,
     pollTimeoutSeconds: parseIntEnv("POLL_TIMEOUT_SECONDS", 50),
     pollRetryDelayMs: parseIntEnv("POLL_RETRY_DELAY_MS", 2000),
-    adminUserIds: parseAdminUserIds()
+    adminUserIds: adminIds,
+    allowedUserIds: parseAllowedUserIds(adminIds)
   };
   return cached;
 };
