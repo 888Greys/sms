@@ -572,6 +572,88 @@ const handleForceRelease = async (
   );
 };
 
+const handleResetAll = async (chatId: number, requesterId: number): Promise<void> => {
+  if (!isAdmin(requesterId)) {
+    await sendMessage(config.botToken, chatId, "Admin only command.");
+    return;
+  }
+
+  const statuses = await getBatchStatuses();
+  for (const { batch, ownerId } of statuses) {
+    if (ownerId !== null) {
+      await releaseBatchForUser(ownerId, batch);
+    }
+    // Clear sent/skipped sets and rebuild the pending queue from the number list
+    const sentKey = keys.batchSent(batch);
+    const skippedKey = keys.batchSkipped(batch);
+    const pendingKey = keys.batchPending(batch);
+    const numbersKey = keys.batchNumbers(batch);
+
+    const allNumbers = await redis.lrange<string>(numbersKey, 0, -1);
+    await redis.del(sentKey);
+    await redis.del(skippedKey);
+    await redis.del(pendingKey);
+    if (allNumbers.length > 0) {
+      await redis.rpush(pendingKey, ...allNumbers);
+    }
+  }
+
+  await sendMessage(
+    config.botToken,
+    chatId,
+    `<b>✅ All batches reset.</b>\nAll ownership cleared and pending queues rebuilt from scratch.`
+  );
+};
+
+const handleAssignBatch = async (
+  chatId: number,
+  requesterId: number,
+  text: string
+): Promise<void> => {
+  if (!isAdmin(requesterId)) {
+    await sendMessage(config.botToken, chatId, "Admin only command.");
+    return;
+  }
+
+  // Parse: /assign <batch> <user_id>
+  const parts = text.trim().split(/\s+/);
+  if (parts.length < 3) {
+    await sendMessage(config.botToken, chatId, "Usage: /assign &lt;batch&gt; &lt;user_id&gt;");
+    return;
+  }
+  const batch = Number.parseInt(parts[1] ?? "", 10);
+  const targetUserId = Number.parseInt(parts[2] ?? "", 10);
+
+  if (
+    Number.isNaN(batch) || batch < config.minBatch || batch > config.maxBatch ||
+    Number.isNaN(targetUserId) || targetUserId <= 0
+  ) {
+    await sendMessage(
+      config.botToken,
+      chatId,
+      `Invalid arguments. Batch must be ${config.minBatch}–${config.maxBatch} and user_id must be a valid Telegram ID.`
+    );
+    return;
+  }
+
+  // Release current owner if any
+  const currentOwner = await getBatchOwnerId(batch);
+  if (currentOwner !== null && currentOwner !== targetUserId) {
+    await releaseBatchForUser(currentOwner, batch);
+  }
+
+  // Assign to target
+  await redis.set(keys.batchOwner(batch), String(targetUserId), { nx: true });
+  await redis.set(keys.agentBatch(targetUserId), batch);
+
+  const progress = await getProgress(batch);
+  await sendMessage(
+    config.botToken,
+    chatId,
+    `<b>✅ Batch ${batch} assigned to user ${targetUserId}.</b>\nRemaining: <b>${progress.remaining}</b>\n\nThey can now use /next to start working.`
+  );
+};
+
 const handleTextMessage = async (message: TelegramMessage): Promise<void> => {
   const userId = message.from?.id;
   const chatId = message.chat.id;
@@ -600,7 +682,11 @@ const handleTextMessage = async (message: TelegramMessage): Promise<void> => {
       "/progress - show your batch progress\n" +
       "/release - release your current batch\n" +
       "/undo - undo your last Sent/Skip\n" +
-      "/status - show all batch status"
+      "/status - show all batch status\n" +
+      "\n<b>Admin only:</b>\n" +
+      "/reset_all - reset ALL batches to fresh start\n" +
+      "/assign &lt;batch&gt; &lt;user_id&gt; - assign batch to a user\n" +
+      "/force_release &lt;n&gt; - force release a batch"
     );
     await sendClaimPicker(chatId, userId);
     return;
@@ -619,7 +705,9 @@ const handleTextMessage = async (message: TelegramMessage): Promise<void> => {
       "/release\n" +
       "/undo\n" +
       "/status\n" +
-      "/force_release &lt;n&gt; (admin only)"
+      "/force_release &lt;n&gt; (admin)\n" +
+      "/reset_all (admin)\n" +
+      "/assign &lt;batch&gt; &lt;user_id&gt; (admin)"
     );
     return;
   }
@@ -666,6 +754,16 @@ const handleTextMessage = async (message: TelegramMessage): Promise<void> => {
 
   if (text.startsWith("/force_release")) {
     await handleForceRelease(chatId, userId, text);
+    return;
+  }
+
+  if (text.startsWith("/reset_all")) {
+    await handleResetAll(chatId, userId);
+    return;
+  }
+
+  if (text.startsWith("/assign")) {
+    await handleAssignBatch(chatId, userId, text);
     return;
   }
 
