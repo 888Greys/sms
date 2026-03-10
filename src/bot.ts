@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { createServer } from "node:http";
 import { getConfig } from "./lib/config.js";
 import { createKeys, parseBatchFromNumberId } from "./lib/keys.js";
 import { parseActionData, parseClaimArg, parseForceReleaseArg } from "./lib/parsers.js";
@@ -896,6 +897,14 @@ const startPolling = async (): Promise<void> => {
     }
   }
 };
+
+const port = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 3000;
+createServer((_req, res) => {
+  res.writeHead(200);
+  res.end("ok");
+}).listen(port, "0.0.0.0", () => {
+  console.log(`Health check server listening on port ${port}`);
+});
 
 void startPolling().catch((error: unknown) => {
   console.error("Fatal startup error", error);
