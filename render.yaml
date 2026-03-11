@@ -2,7 +2,7 @@ services:
   - type: web
     name: sms-bot
     runtime: node
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npm run build && npm run import:batches
     startCommand: node dist/src/bot.js
     envVars:
       - key: NODE_ENV
